@@ -1,0 +1,135 @@
+---
+title: "VALERIE"
+author: "Sean Wen"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{VALERIE}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<style type="text/css">
+
+body, td {
+   font-size: 14px;
+}
+code.r{
+  font-size: 12px;
+}
+pre {
+  font-size: 12px
+}
+</style>
+
+```{r wrap-hook, echo=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+```
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Installation
+```{r eval=FALSE}
+# From Github
+library(devtools)
+install_github("wenweixiong/VALERIE")
+
+# From CRAN
+install.packages("VALERIE")
+```
+
+# Load package
+```{r message=FALSE, warning=FALSE}
+library(VALERIE)
+```
+
+## Additional resource
+The main aims of this vignette is to highlight the principles and technicalities behind VALERIE and to show case the main functionalities of VALERIE. 
+
+We refer our prospective users to the comprehensive tutorial on using VALERIE to perform *in silico* visual-based validation of alternative splicing events here: https://wenweixiong.github.io/VALERIE.html  
+
+# Introduction
+Alternative splicing enables multiple transcripts or isoforms to arise from a single gene, consequently increasing functional diversity of a gene. A notably example is Bcl-x gene. Bcl-x(L) splice variant that has anti-apoptotic activity whereas Bcl-x(S) splice variant has pro-apoptotic activity (*Li et al., 2016*). To date, single-cell alternative splicing has been primarily studied in cells of the nervous and immune system  (*Song et al., 2017; Byrne et al., 2017*). Current genome browsers are optimized to visualise gene expression profiles generated from small-scale bulk RNA-sequencing experiments (*Thorvaldsdottir et al., 2013*). This strategy obscure or do not capture cell-to-cell heterogeneity in alternative splicing profiles in single cell populations. Therefore, there remains a need for visualisation platforms to visualise alternative splicing events at single-cell resolution (*Wen et al, 2020*). To this end, we developed VALERIE (**V**isulazing **AL**ternative splicing **E**vents from **RI**bonucleic acid **E**xperiments) - a visualisation platform to address the challenges in visualising alternative splicing events at single-cell resolution. Key features of VALERIE include:  
+(1) Displays PSI instead of conventional coverage/expression.  
+(2) Ability to scale to large datasets consisting of hundreds or even thousands of samples typical of single cell experiments.  
+(3) Summarizes PSI profile for user-defined groups of single cells.  
+(4) Assess statistical significance of PSI profiles between groups of single cells.  
+(5) Omits non-informative intronic regions.
+(6) Standardizes genomic coordinates from 5' to 3' transcription direction.  
+
+  VALERIE is designed for visualising alternative splicing events from short-read scRNA-seq data. Therefore, visualisation is restricted to exon-level alternative splicing events, as opposed to full-length isoform expression. Exon-level alternative splicing events primarily encompass skipped-exon (SE), mutually exclusive exons (MXE), retained intron (RI), alternative 5' splice site (A5SS), and alternative 3' splice site (A3SS).
+  
+# Design
+At each genomic coordinate spanning the alternative spliced exon and its flanking constitutive exon(s), ```GenomicAlignments``` was used to tabulate number of reads with non-N CIGAR operation and total number of reads. Total number of reads is the sum of reads with non-N CIGAR operation and reads with N-CIGAR operation. Reads with non-N CIGAR operation are complete (non-split reads) whereas reads with N CIGAR operation are split reads and indicate splicing events. PSI values are computed by taking the number of reads with non-N CIGAR operation and dividing it by the total number of reads. Next, the PSI values for every single cell are plotted in the form of a heatmap using ```pheatmap```. The PSI values at each genomic coordinate for each group of single cells are summarized using the mean and the corresponding p-value is determined. P-values can be assess using student t-test or wilcoxon rank-sum test for 2-group comparison or ANOVA or Kruskal-Wallis test for 3-group comparison. The means and p-values at each genomic coordinate are then presented in a line graph using ```ggplot2```. Gene structures are present to indicate the location of the alternative exon relative to its flanking constitutive exon(s).  
+  
+# Example data
+The example data used here were from a previous publication (*Falcao et al., 2018*). In this study, scRNA-seq was performed on single cells obtained from the spinal cords of mice induced with experimental autoimmune encephalomyelitis (EAE) and untreated mice serving as controls. The library preparation accomplished using Smartseq-2 and then subjected to 50bp single-end sequencing (*Ramskold et al., 2012*). BRIE, a computational tool for infering PSI values based on sequencing reads and sequence features, was used to identify significant alternative splicing events between the two groups of single cells. Subsequently, Mbp was found to be alternatively spliced between the two groups of single cells. Specifically, Mbp exon 2 was found to have higher PSI values in EAE compared to control mice. This spling event was independently validated in a subsequent experiment using quantitative polymerase chain reaction (qPCR). Here, we will demonstrate the visual-based validation of this splicing event using VALERIE.
+
+# Running the code
+Only one function is needed to plot the alternative splicing event.
+
+```{r eval=FALSE, message=FALSE, warning=FALSE}
+# Read sample metadata
+path_to_file <- system.file("extdata", "BAM_PhenoData.txt", package="VALERIE")
+BamPheno <- read.table(path_to_file, sep="\t", header=TRUE, stringsAsFactors=FALSE)
+head(BamPheno)
+
+# Plot
+PlotPSI(tran_id="chr18:82554580:82554750:+@chr18:82561778:82561855:+@chr18:82572825:82572926",
+        event.type="SE",
+        strand="positive",
+        Bam=system.file("extdata/BAM", package="VALERIE"),
+        BamPheno=BamPheno,
+        cell.types=c("Ctrl", "EAE"),
+        min.coverage=10,
+        cons.exon.cutoff=100,
+        method="t.test",
+        method.adj="bonferroni",
+        cell.types.colors="ggplot.default",
+        plot.title="Mbp",
+        plot.width=5,
+        plot.height=8,
+        plot.out=system.file("extdata/Plots", "Mbp.pdf", package="VALERIE")
+        )
+```
+
+# Understanding the output
+```{r message=FALSE, echo=FALSE}
+path_to_file <- system.file("extdata/Plots", "Mbp.png", package="VALERIE")
+knitr::include_graphics(path_to_file)
+```
+
+A PDF plot is returned:  
+(1) Top figure: Per-base PSI value scaled by column.  
+(2) Middle figure: Per-base average PSI value by cell type.  
+(3) Bottom figure: Per-base adjusted p-values.  
+
+# References
+
+Byrne, A., Beaudin, A. E., Olsen, H. E., Jain, M., Cole, C., Palmer, T., . . . Vollmers, C. (2017). Nanopore long-read RNAseq reveals widespread transcriptional variation among the surface receptors of individual B cells. Nat Commun, 8, 16027. doi:10.1038/ncomms16027  
+
+Falcao, A. M., van Bruggen, D., Marques, S., Meijer, M., Jakel, S., Agirre, E., . . . Castelo-Branco, G. (2018). Disease-specific oligodendrocyte lineage cells arise in multiple sclerosis. Nat Med, 24(12), 1837-1844. doi:10.1038/s41591-018-0236-y  
+
+Li, Z., Li, Q., Han, L., Tian, N., Liang, Q., Li, Y., . . . Tian, Y. (2016). Pro-apoptotic effects of splice-switching oligonucleotides targeting Bcl-x pre-mRNA in human glioma cell lines. Oncol Rep, 35(2), 1013-1019. doi:10.3892/or.2015.4465  
+
+Ramskold, D., Luo, S., Wang, Y. C., Li, R., Deng, Q., Faridani, O. R., . . . Sandberg, R. (2012). Full-length mRNA-Seq from single-cell levels of RNA and individual circulating tumor cells. Nat Biotechnol, 30(8), 777-782. doi:10.1038/nbt.2282  
+
+Song, Y., Botvinnik, O. B., Lovci, M. T., Kakaradov, B., Liu, P., Xu, J. L., & Yeo, G. W. (2017). Single-Cell Alternative Splicing Analysis with Expedition Reveals Splicing Dynamics during Neuron Differentiation. Mol Cell, 67(1), 148-161 e145. doi:10.1016/j.molcel.2017.06.003  
+
+Thorvaldsdottir, H., Robinson, J. T., & Mesirov, J. P. (2013). Integrative Genomics Viewer (IGV): high-performance genomics data visualisation and exploration. Brief Bioinform, 14(2), 178-192. doi:10.1093/bib/bbs017
+
+Wen, W. X., Mead, A. J., & Thongjuea, S. (2020a). Technological advances and computational approaches for alternative splicing analysis in single cells. Comput Struct Biotechnol J, 18, 332-343. doi:10.1016/j.csbj.2020.01.009  
